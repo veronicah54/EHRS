@@ -15,30 +15,55 @@ const doctorRoutes = require('./routes/doctors');
 
 const app = express();
 const server = http.createServer(app);
+
+// Socket.IO with all origins allowed
 const io = socketIo(server, {
   cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:3000",
-    methods: ["GET", "POST"]
+    origin: "*", // Allow all origins
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    credentials: true,
+    allowedHeaders: ["*"],
+    exposedHeaders: ["*"]
   }
 });
 
-// Security middleware
-app.use(helmet());
-app.use(cors({
-  origin: process.env.CLIENT_URL || "http://localhost:3000",
-  credentials: true
+// Security middleware (adjust for development)
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  crossOriginOpenerPolicy: { policy: "unsafe-none" },
+  contentSecurityPolicy: false 
 }));
 
-// Rate limiting
+// CORS - Allow all origins
+app.use(cors({
+  origin: "*",
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+  allowedHeaders: ["*"],
+  exposedHeaders: ["*"],
+  optionsSuccessStatus: 200,
+  preflightContinue: false
+}));
+
+// Handle preflight requests
+app.options('*', cors({
+  origin: "*",
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+  allowedHeaders: ["*"]
+}));
+
+// Rate limiting (optional - you can disable in development)
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: process.env.NODE_ENV === 'development' ? 10000 : 100, // Very high limit in dev
+  skip: (req) => process.env.NODE_ENV === 'development' // Skip rate limiting in dev
 });
 app.use(limiter);
 
 // Body parsing middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Database connection
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/emergency_healthcare', {
@@ -48,7 +73,7 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/emergency
 .then(() => console.log('MongoDB connected successfully'))
 .catch(err => console.error('MongoDB connection error:', err));
 
-// Socket.IO for real-time features
+// Socket.IO event handlers
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
   
@@ -82,7 +107,19 @@ app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'OK', 
     timestamp: new Date().toISOString(),
-    uptime: process.uptime()
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development',
+    cors: 'all origins allowed'
+  });
+});
+
+// Test endpoint
+app.get('/api/test-cors', (req, res) => {
+  res.json({
+    message: 'CORS is fully open',
+    yourOrigin: req.headers.origin || 'No origin header',
+    method: req.method,
+    headers: req.headers
   });
 });
 
@@ -103,6 +140,8 @@ app.use('*', (req, res) => {
 const PORT = process.env.PORT || 8000;
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`CORS: All origins allowed (development mode)`);
 });
 
 module.exports = app;

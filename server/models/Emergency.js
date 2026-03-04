@@ -18,6 +18,7 @@ const emergencySchema = new mongoose.Schema({
       'severe_pain',
       'allergic_reaction',
       'poisoning',
+      'chest_pain',
       'burns',
       'fracture',
       'accident',
@@ -207,6 +208,7 @@ emergencySchema.methods.calculatePriority = function() {
     'allergic_reaction': 3,
     'poisoning': 4,
     'burns': 3,
+    'chest_pain': 4,
     'fracture': 2,
     'accident': 3,
     'other': 2
